@@ -19,7 +19,7 @@ COPY . .
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o chatbot cmd/bot/main.go
 
 # Final stage - use distroless debian nonroot with C library support
-FROM gcr.io/distroless/cc-debian12:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 
