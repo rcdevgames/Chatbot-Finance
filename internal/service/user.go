@@ -29,7 +29,7 @@ func NewUserService(
 
 func (s *UserService) GetOrCreateUser(telegramUserID int64, firstName, lastName, username string) (*model.User, error) {
 	// Check if user exists
-	user, err := s.userRepo.GetUserByTelegramID(telegramUserID)
+	user, err := s.GetUserByTelegramID(telegramUserID)
 	if err == nil {
 		// Update user info if needed
 		if user.FirstName != firstName || user.LastName != lastName || user.TelegramUsername != username {
@@ -57,6 +57,10 @@ func (s *UserService) GetOrCreateUser(telegramUserID int64, firstName, lastName,
 	}
 
 	return newUser, nil
+}
+
+func (s *UserService) GetUserByTelegramID(telegramUserID int64) (*model.User, error) {
+	return s.userRepo.GetUserByTelegramID(telegramUserID)
 }
 
 func (s *UserService) AddTransaction(userID string, transaction *model.Transaction) error {

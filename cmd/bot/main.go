@@ -37,9 +37,10 @@ func main() {
 
 	// Initialize services
 	userService := service.NewUserService(userRepo, transactionRepo, chatHistoryRepo, categoryRepo)
+	licenseService := service.NewLicenseService(db.DB)
 
 	// Initialize handlers
-	telegramHandler := handler.NewTelegramHandler(telegramClient, userService, groqService)
+	telegramHandler := handler.NewTelegramHandler(telegramClient, userService, groqService, licenseService)
 
 	// Setup Gin router
 	router := gin.Default()

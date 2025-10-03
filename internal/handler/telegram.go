@@ -14,17 +14,20 @@ type TelegramHandler struct {
 	telegramClient *telegram.Client
 	userService    *service.UserService
 	llmService     *service.GroqService
+	licenseService *service.LicenseService
 }
 
 func NewTelegramHandler(
 	telegramClient *telegram.Client,
 	userService *service.UserService,
 	llmService *service.GroqService,
+	licenseService *service.LicenseService,
 ) *TelegramHandler {
 	return &TelegramHandler{
 		telegramClient: telegramClient,
 		userService:    userService,
 		llmService:     llmService,
+		licenseService: licenseService,
 	}
 }
 
@@ -47,40 +50,114 @@ func (h *TelegramHandler) HandleUpdate(update telegram.Update) error {
 		return h.sendErrorResponse(chat.ID, "Maaf, ada error sistem. Coba lagi ya.")
 	}
 
+	// Check license for non-start commands
+	if !strings.HasPrefix(text, "/start") && !strings.HasPrefix(text, "/license") {
+		isLicensed, err := h.licenseService.IsUserLicensed(user.ID)
+		if err != nil {
+			log.Printf("Error checking license: %v", err)
+			return h.sendErrorResponse(chat.ID, "Maaf, ada error sistem. Coba lagi ya.")
+		}
+
+		if !isLicensed {
+			return h.handleUnlicensedUser(chat.ID, user.ID)
+		}
+
+		// Update last used timestamp
+		if err := h.licenseService.UpdateLastUsed(user.ID); err != nil {
+			log.Printf("Error updating last used: %v", err)
+		}
+	}
+
 	// Handle commands
 	if strings.HasPrefix(text, "/") {
-		return h.handleCommand(chat.ID, text, dbUser.ID)
+		return h.handleCommand(chat.ID, text, dbUser, user.ID)
 	}
 
 	// Process regular message
 	return h.handleMessage(chat.ID, text, dbUser)
 }
 
-func (h *TelegramHandler) handleCommand(chatID int64, command, userID string) error {
+func (h *TelegramHandler) handleCommand(chatID int64, command, userID, telegramUserID int64) error {
 	switch command {
 	case "/start":
-		return h.handleStart(chatID)
+		return h.handleStart(chatID, telegramUserID)
 	case "/help":
 		return h.handleHelp(chatID)
+	case "/license":
+		return h.handleLicenseHelp(chatID)
 	case "/summary":
 		return h.handleSummary(chatID, userID)
 	default:
+		if strings.HasPrefix(command, "/license ") {
+			licenseKey := strings.TrimPrefix(command, "/license ")
+			return h.handleLicenseActivation(chatID, telegramUserID, userID, licenseKey)
+		}
 		return h.sendMessage(chatID, "Command ga dikenal. Ketik /help untuk bantuan.")
 	}
 }
 
-func (h *TelegramHandler) handleStart(chatID int64) error {
-	welcomeMsg := `👋 Halo bro! Selamat datang di Finance Bot Gua.
+func (h *TelegramHandler) handleStart(chatID, telegramUserID int64) error {
+	// Check if user already has a license
+	isLicensed, err := h.licenseService.IsUserLicensed(telegramUserID)
+	if err != nil {
+		log.Printf("Error checking license: %v", err)
+	}
 
-Gua bantu lo tracking keuangan personal pake chat biasa.
+	if isLicensed {
+		licenseInfo, err := h.licenseService.GetLicenseInfo(telegramUserID)
+		if err == nil {
+			return h.handleLicensedStart(chatID, licenseInfo)
+		}
+	}
 
-🔥 Fitur-fitur:
+	// User needs to activate license
+	welcomeMsg := `🔒 SELAMAT DATANG DI FINANCE BOT
+
+Bot ini memerlukan lisensi untuk bisa digunakan.
+
+📝 CARA AKTIVASI:
+Ketik: /license KODE_LISENSI_ANDA
+
+Contoh: /license FBT-1234-5678-9ABC-DEF0
+
+🔑 Jika belum punya kode lisensi:
+Silakan hubungi admin untuk mendapatkan kode lisensi.
+
+📋 COMMANDS:
+/license - Bantuan aktivasi lisensi
+/help - Bantuan penggunaan bot`
+
+	return h.sendMessage(chatID, welcomeMsg)
+}
+
+func (h *TelegramHandler) handleLicensedStart(chatID int64, licenseInfo *model.LicenseStatus) error {
+	welcomeMsg := fmt.Sprintf(`👋 SELAMAT DATANG KEMBALI!
+
+🔓 Lisensi Aktif: %s
+📊 Status: ✅ Valid`, licenseInfo.LicenseName)
+
+	if licenseInfo.ExpiresAt != nil {
+		daysLeft := *licenseInfo.DaysRemaining
+		if daysLeft > 0 {
+			welcomeMsg += fmt.Sprintf("\n⏰ Masa berlaku: %d hari lagi", daysLeft)
+		} else {
+			welcomeMsg += "\n⚠️ Lisensi akan segera expired!"
+		}
+	}
+
+	if licenseInfo.MaxUsers > 0 {
+		welcomeMsg += fmt.Sprintf("\n👥 Pengguna aktif: %d/%d", licenseInfo.UsersActive, licenseInfo.MaxUsers)
+	}
+
+	welcomeMsg += `
+
+🔥 FITUR-FITUR:
 • 📝 Input transaksi pake natural language
 • 📊 Query data keuangan (mingguan/bulanan)
 • 🔄 Update/delete transaksi
 • 💡 Auto financial insights
 
-📖 Contoh penggunaan:
+📖 CONTOH PENGGUNAAN:
 • "bayar makan 50rb di warteg"
 • "gaji masuk 8 juta kemarin"
 • "brp pengeluaran gua minggu ini?"
@@ -89,6 +166,100 @@ Gua bantu lo tracking keuangan personal pake chat biasa.
 Langsung aja coba!`
 
 	return h.sendMessage(chatID, welcomeMsg)
+}
+
+func (h *TelegramHandler) handleLicenseHelp(chatID int64) error {
+	helpMsg := `🔑 BANTUAN LISENSI
+
+📝 CARA AKTIVASI:
+1. Dapatkan kode lisensi dari admin
+2. Ketik: /license KODE_LISENSI
+3. Tunggu konfirmasi aktivasi
+
+📋 COMMAND LISI:
+• /license - Tampilkan bantuan ini
+• /license KODE - Aktivasi lisensi dengan kode
+• /license status - Cek status lisensi
+
+💡 TIPS:
+• Simpan kode lisensi dengan baik
+• Satu lisensi bisa digunakan oleh beberapa user (tergantung tipe lisensi)
+• Lisensi memiliki masa berlaku tertentu
+
+❓ Jika butuh bantuan:
+Hubungi admin untuk informasi lebih lanjut.`
+
+	return h.sendMessage(chatID, helpMsg)
+}
+
+func (h *TelegramHandler) handleLicenseActivation(chatID, telegramUserID int64, userID, licenseKey string) error {
+	// Get user info
+	user, err := h.userService.GetUserByTelegramID(telegramUserID)
+	if err != nil {
+		return h.sendErrorResponse(chatID, "Gagal mendapatkan data user. Coba lagi ya.")
+	}
+
+	// Activate license
+	err = h.licenseService.ActivateLicense(licenseKey, telegramUserID, user)
+	if err != nil {
+		log.Printf("Failed to activate license for user %d: %v", telegramUserID, err)
+
+		errorMsg := fmt.Sprintf(`❌ GAGAL AKTIVASI LISI
+
+Error: %s
+
+📋 SOLUSI:
+• Pastikan kode lisensi benar
+• Cek apakah lisensi masih aktif
+• Pastikan lisensi belum melewati batas user
+• Hubungi admin jika butuh bantuan`, err.Error())
+
+		return h.sendMessage(chatID, errorMsg)
+	}
+
+	// Get license info
+	licenseInfo, err := h.licenseService.GetLicenseInfo(telegramUserID)
+	if err != nil {
+		return h.sendErrorResponse(chatID, "Lisensi berhasil diaktifkan tapi gagal mengambil info.")
+	}
+
+	successMsg := fmt.Sprintf(`✅ LISI BERHASIL DIAKTIVASI!
+
+🔑 Lisensi: %s
+📊 Status: ✅ Aktif
+👥 User: %s (%s)`,
+		licenseInfo.LicenseName,
+		user.FirstName,
+		user.Username)
+
+	if licenseInfo.ExpiresAt != nil && licenseInfo.DaysRemaining != nil {
+		successMsg += fmt.Sprintf("\n⏰ Berlaku hingga: %d hari lagi", *licenseInfo.DaysRemaining)
+	}
+
+	successMsg += `
+
+🎉 Sekarang lo bisa mulai gunain bot!
+Ketik /help untuk lihat command yang tersedia.`
+
+	return h.sendMessage(chatID, successMsg)
+}
+
+func (h *TelegramHandler) handleUnlicensedUser(chatID, telegramUserID int64) error {
+	unlicensedMsg := `🔒 AKSES DITOLAK
+
+Bot ini memerlukan lisensi untuk bisa digunakan.
+
+📝 CARA AKTIVASI:
+Ketik: /license KODE_LISENSI_ANDA
+
+Contoh: /license FBT-1234-5678-9ABC-DEF0
+
+🔑 Jika belum punya kode lisensi:
+Silakan hubungi admin untuk mendapatkan kode lisensi.
+
+❓ Butuh bantuan? Ketik /license`
+
+	return h.sendMessage(chatID, unlicensedMsg)
 }
 
 func (h *TelegramHandler) handleHelp(chatID int64) error {
