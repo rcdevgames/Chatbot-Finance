@@ -1,10 +1,10 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apk add --no-cache git ca-certificates tzdata gcc musl-dev
 
 # Copy go mod files
 COPY go.mod go.sum ./
@@ -16,7 +16,7 @@ RUN go mod download
 COPY . .
 
 # Build the application with CGO enabled for PostgreSQL
-RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o main cmd/bot/main.go
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o chatbot cmd/bot/main.go
 
 # Final stage - use distroless debian nonroot with C library support
 FROM gcr.io/distroless/cc-debian12:nonroot
@@ -24,7 +24,7 @@ FROM gcr.io/distroless/cc-debian12:nonroot
 WORKDIR /app
 
 # Copy the binary from builder stage
-COPY --from=builder /app/main .
+COPY --from=builder /app/chatbot .
 
 # Copy timezone data from builder stage
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
@@ -38,4 +38,4 @@ EXPOSE 8080
 # Run the binary as nonroot user
 USER 65532:65532
 
-CMD ["./main"]
+CMD ["/app/chatbot"]
