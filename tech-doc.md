@@ -134,7 +134,7 @@ Send notification via Telegram:
 
 ---
 
-## 3. Database Schema (Supabase)
+## 3. Database Schema (PostgreSQL + GORM)
 
 ### 3.1 Table: `users`
 ```sql
@@ -284,6 +284,8 @@ CREATE INDEX idx_insights_user_period ON insights(user_id, period_start, period_
   /bot
     main.go                    # Entry point
 /internal
+  /database
+    database.go                # PostgreSQL connection & migrations
   /handler
     telegram.go                # Handle Telegram updates
     transaction.go             # Transaction CRUD logic
@@ -293,11 +295,12 @@ CREATE INDEX idx_insights_user_period ON insights(user_id, period_start, period_
     finance.go                 # Financial calculations
     category.go                # Auto-categorization
   /repository
-    supabase.go                # Database operations
-    user.go
-    transaction.go
+    user.go                    # User CRUD operations
+    transaction.go             # Transaction CRUD operations
+    category.go                # Category CRUD operations
+    chat_history.go            # Chat history operations
   /model
-    types.go                   # Structs & types
+    types.go                   # Structs & types with GORM tags
   /config
     config.go                  # Environment config
   /util
@@ -311,28 +314,33 @@ CREATE INDEX idx_insights_user_period ON insights(user_id, period_start, period_
 ### 4.2 Key Dependencies
 ```go
 require (
-    github.com/go-telegram-bot-api/telegram-bot-api/v5
-    github.com/supabase-community/supabase-go
-    github.com/joho/godotenv
-    github.com/gin-gonic/gin // untuk webhook
+    github.com/gin-gonic/gin                 // Web framework
+    github.com/joho/godotenv                 // Environment variables
+    github.com/robfig/cron/v3                // Cron jobs
+    gorm.io/driver/postgres                   // PostgreSQL driver
+    gorm.io/gorm                              // ORM
 )
 ```
 
 ### 4.3 Environment Variables
 ```bash
+# Database
+DATABASE_URL=postgres://chatbot:password@postgres:5432/chatbot?sslmode=disable
+
 # Telegram
 TELEGRAM_BOT_TOKEN=your_bot_token
 
-# Supabase
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_KEY=your_anon_key
-
 # Groq
 GROQ_API_KEY=gsk_xxx
+GROQ_MODEL=llama-3.1-70b-versatile
+GROQ_TEMPERATURE=0.3
+GROQ_MAX_TOKENS=1000
 
 # Server
 PORT=8080
 WEBHOOK_URL=https://yourdomain.com/webhook
+DEFAULT_TIMEZONE=Asia/Jakarta
+DEFAULT_LANGUAGE=id
 ```
 
 ---
@@ -405,12 +413,28 @@ type GroqConfig struct {
 ## 6. Deployment
 
 ### 6.1 Options
-- **Railway**: One-click deploy Golang + webhook
+- **Docker Compose**: Recommended untuk local development & production
+- **Railway**: One-click deploy Golang + PostgreSQL
 - **Fly.io**: Free tier, auto-scale
 - **Google Cloud Run**: Serverless, pay-per-use
 - **VPS**: Full control (DigitalOcean, Linode)
 
-### 6.2 Webhook Setup
+### 6.2 Docker Compose Setup
+```bash
+# Create external network
+docker network create waw_bridge
+
+# Setup environment variables
+cp .env.example .env
+
+# Deploy
+docker-compose up -d --build
+
+# Check health
+curl http://localhost:8080/health
+```
+
+### 6.3 Webhook Setup
 ```bash
 # Set webhook ke Telegram
 curl -X POST \
@@ -418,19 +442,24 @@ curl -X POST \
   -d "url=https://yourdomain.com/webhook"
 ```
 
+### 6.4 Dockerfile Configuration
+- **Multi-stage build**: Optimize image size
+- **Distroless**: Minimal attack surface, non-root user
+- **CGO enabled**: Required for PostgreSQL driver
+
 ---
 
 ## 7. Estimasi & Biaya
 
 **Development Time**: 1-2 minggu (solo developer)
 
-**Monthly Cost**: 
+**Monthly Cost**:
 - Telegram Bot: **FREE**
-- Supabase: **FREE** (up to 500MB database, 2GB bandwidth)
+- PostgreSQL: **FREE** (self-hosted) atau **$5-15/month** (managed)
 - Groq: **FREE** (14,400 requests/day)
-- Hosting: **$5-10/month** (Railway/Fly.io)
+- Hosting: **$5-10/month** (Railway/Fly.io/VPS)
 
-**Total**: ~$5-10/bulan untuk hosting aja
+**Total**: ~$5-25/bulan tergantung hosting setup
 
 ---
 

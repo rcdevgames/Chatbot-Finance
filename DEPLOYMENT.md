@@ -2,7 +2,27 @@
 
 ## 🚀 Quick Deploy
 
-### 1. Railway Deployment
+### 1. Docker Compose (Recommended)
+
+```bash
+# Create external network
+docker network create waw_bridge
+
+# Setup environment variables
+cp .env.example .env
+# Edit .env dengan credentials yang benar
+
+# Deploy
+docker-compose up -d --build
+
+# Check logs
+docker-compose logs -f app
+
+# Check health
+curl http://localhost:8080/health
+```
+
+### 2. Railway Deployment
 
 ```bash
 # Install Railway CLI
@@ -20,12 +40,11 @@ railway up
 
 Environment variables di Railway:
 - `TELEGRAM_BOT_TOKEN`: Token dari BotFather
-- `SUPABASE_URL`: URL Supabase project
-- `SUPABASE_ANON_KEY`: Anon key dari Supabase
+- `DATABASE_URL`: PostgreSQL connection string
 - `GROQ_API_KEY`: API key dari Groq
 - `PORT`: 8080 (auto-set oleh Railway)
 
-### 2. Manual VPS Deployment
+### 3. Manual VPS Deployment
 
 ```bash
 # Build aplikasi
@@ -52,8 +71,7 @@ ExecStart=/path/to/deploy/bot
 Restart=always
 RestartSec=5
 Environment=TELEGRAM_BOT_TOKEN=your_token
-Environment=SUPABASE_URL=your_supabase_url
-Environment=SUPABASE_ANON_KEY=your_supabase_key
+Environment=DATABASE_URL=postgres://user:password@localhost:5432/chatbot?sslmode=disable
 Environment=GROQ_API_KEY=your_groq_key
 
 [Install]
@@ -67,7 +85,7 @@ sudo systemctl start finance-bot
 sudo systemctl status finance-bot
 ```
 
-### 3. Docker Deployment
+### 4. Docker Deployment
 
 ```bash
 # Build image
@@ -79,6 +97,7 @@ docker run -d \
   --restart unless-stopped \
   -p 8080:8080 \
   --env-file .env \
+  --network waw_bridge \
   finance-bot
 ```
 
@@ -103,7 +122,8 @@ Response harusnya:
 ```json
 {
   "status": "ok",
-  "message": "Telegram Finance Bot is running"
+  "message": "Telegram Finance Bot is running",
+  "database": "healthy"
 }
 ```
 
@@ -116,8 +136,10 @@ Response harusnya:
 
 ### Metrics
 - Monitor webhook response time
-- Track user activity di Supabase
+- Track user activity di database
 - Monitor Groq API usage
+- Database connection pool status
+- Error rate tracking
 
 ## 🔄 CI/CD (Opsional)
 
@@ -142,13 +164,21 @@ jobs:
 ### Bot tidak merespon
 1. Check environment variables
 2. Verify webhook URL
-3. Check Supabase connection
+3. Check PostgreSQL connection
 4. Test Groq API key
 
 ### Database errors
-1. Run SQL schema di Supabase
-2. Check RLS policies
-3. Verify API permissions
+1. Pastikan PostgreSQL running dan accessible
+2. Run schema migration: check auto-migration logs
+3. Verify UUID extension enabled
+4. Check connection string format
+5. Monitor connection pool status
+
+### GORM errors
+1. Check model definitions untuk GORM tags
+2. Verify foreign key relationships
+3. Check database migration logs
+4. Test manual query di database
 
 ### Webhook errors
 1. Pastikan HTTPS enabled

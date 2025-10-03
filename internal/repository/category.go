@@ -2,79 +2,60 @@ package repository
 
 import (
 	"chatbot/internal/model"
+
+	"gorm.io/gorm"
 )
 
 type CategoryRepository struct {
-	db *SupabaseClient
+	db *gorm.DB
 }
 
-func NewCategoryRepository(db *SupabaseClient) *CategoryRepository {
+func NewCategoryRepository(db *gorm.DB) *CategoryRepository {
 	return &CategoryRepository{db: db}
 }
 
 func (r *CategoryRepository) GetAllCategories() ([]model.Category, error) {
 	var categories []model.Category
-	params := map[string]interface{}{
-		"order": "type.asc,name.asc",
-	}
-	err := r.db.Get("categories", params, &categories)
-	if err != nil {
-		return nil, HandleSupabaseError(err)
-	}
-
-	return categories, nil
+	err := r.db.Order("type ASC, name ASC").Find(&categories).Error
+	return categories, err
 }
 
 func (r *CategoryRepository) GetCategoriesByType(categoryType string) ([]model.Category, error) {
 	var categories []model.Category
-	params := map[string]interface{}{
-		"type":  categoryType,
-		"order": "name.asc",
-	}
-	err := r.db.Get("categories", params, &categories)
-	if err != nil {
-		return nil, HandleSupabaseError(err)
-	}
-
-	return categories, nil
+	err := r.db.Where("type = ?", categoryType).
+		Order("name ASC").
+		Find(&categories).Error
+	return categories, err
 }
 
 func (r *CategoryRepository) GetCategoryByName(name string) (*model.Category, error) {
-	var categories []model.Category
-	params := map[string]interface{}{
-		"name":  name,
-		"limit": 1,
-	}
-	err := r.db.Get("categories", params, &categories)
+	var category model.Category
+	err := r.db.Where("name = ?", name).First(&category).Error
 	if err != nil {
-		return nil, HandleSupabaseError(err)
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
 	}
-
-	if len(categories) == 0 {
-		return nil, nil
-	}
-
-	return &categories[0], nil
+	return &category, nil
 }
 
 func (r *CategoryRepository) SearchCategoryByKeyword(keyword string) ([]model.Category, error) {
 	var categories []model.Category
-	// Note: Contains might not work with custom client, implement simple filtering
-	err := r.db.Get("categories", nil, &categories)
-	if err != nil {
-		return nil, HandleSupabaseError(err)
-	}
+	err := r.db.Where("keywords LIKE ?", "%"+keyword+"%").
+		Order("type ASC, name ASC").
+		Find(&categories).Error
+	return categories, err
+}
 
-	// Filter by keywords (simple implementation)
-	var filtered []model.Category
-	for _, cat := range categories {
-		for _, kw := range cat.Keywords {
-			if kw == keyword {
-				filtered = append(filtered, cat)
-				break
-			}
-		}
-	}
+func (r *CategoryRepository) CreateCategory(category *model.Category) error {
+	return r.db.Create(category).Error
+}
 
-	return filtered, nil
+func (r *CategoryRepository) UpdateCategory(category *model.Category) error {
+	return r.db.Save(category).Error
+}
+
+func (r *CategoryRepository) DeleteCategory(categoryID string) error {
+	return r.db.Delete(&model.Category{}, "id = ?", categoryID).Error
 }

@@ -1,68 +1,56 @@
 package repository
 
 import (
-	"fmt"
-
 	"chatbot/internal/model"
+
+	"gorm.io/gorm"
 )
 
 type UserRepository struct {
-	db *SupabaseClient
+	db *gorm.DB
 }
 
-func NewUserRepository(db *SupabaseClient) *UserRepository {
+func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
 func (r *UserRepository) CreateUser(user *model.User) error {
-	var result []model.User
-	err := r.db.Post("users", user, &result)
-	if err != nil {
-		return HandleSupabaseError(err)
-	}
-
-	if len(result) > 0 {
-		user.ID = result[0].ID
-	}
-
-	return nil
+	return r.db.Create(user).Error
 }
 
 func (r *UserRepository) GetUserByTelegramID(telegramUserID int64) (*model.User, error) {
-	var users []model.User
-	params := map[string]interface{}{
-		"telegram_user_id": telegramUserID,
-		"limit":            1,
-	}
-	err := r.db.Get("users", params, &users)
+	var user model.User
+	err := r.db.Where("telegram_user_id = ?", telegramUserID).First(&user).Error
 	if err != nil {
-		return nil, HandleSupabaseError(err)
+		if err == gorm.ErrRecordNotFound {
+			return nil, gorm.ErrRecordNotFound
+		}
+		return nil, err
 	}
-
-	if len(users) == 0 {
-		return nil, fmt.Errorf("user not found")
-	}
-
-	return &users[0], nil
+	return &user, nil
 }
 
 func (r *UserRepository) UpdateUser(user *model.User) error {
-	var result []model.User
-	err := r.db.Patch("users", user.ID, user, &result)
-	return HandleSupabaseError(err)
+	return r.db.Save(user).Error
 }
 
 func (r *UserRepository) UserExists(telegramUserID int64) (bool, error) {
-	var users []model.User
-	params := map[string]interface{}{
-		"telegram_user_id": telegramUserID,
-		"select":           "id",
-		"limit":            1,
-	}
-	err := r.db.Get("users", params, &users)
+	var count int64
+	err := r.db.Model(&model.User{}).Where("telegram_user_id = ?", telegramUserID).Count(&count).Error
 	if err != nil {
-		return false, HandleSupabaseError(err)
+		return false, err
 	}
+	return count > 0, nil
+}
 
-	return len(users) > 0, nil
+func (r *UserRepository) GetUserByID(id string) (*model.User, error) {
+	var user model.User
+	err := r.db.Where("id = ?", id).First(&user).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, gorm.ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
 }

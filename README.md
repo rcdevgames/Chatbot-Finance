@@ -13,7 +13,8 @@ Telegram bot untuk tracking keuangan personal dengan natural language processing
 ## 📋 Persyaratan
 
 - Go 1.21+
-- Supabase account
+- PostgreSQL 15+
+- Docker & Docker Compose (untuk deployment)
 - Groq API key
 - Telegram Bot token
 
@@ -35,12 +36,15 @@ cp .env.example .env
 Edit `.env` file:
 
 ```bash
+# Database
+DATABASE_URL=postgres://chatbot:your_password_here@postgres:5432/chatbot?sslmode=disable
+POSTGRES_DB=chatbot
+POSTGRES_USER=chatbot
+POSTGRES_PASSWORD=your_password_here
+POSTGRES_PORT=5432
+
 # Telegram
 TELEGRAM_BOT_TOKEN=your_bot_token_here
-
-# Supabase
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_key
 
 # Groq AI
 GROQ_API_KEY=gsk_your_groq_api_key
@@ -52,9 +56,31 @@ WEBHOOK_URL=https://yourdomain.com/webhook
 
 ### 3. Setup Database
 
-1. Buat project baru di [Supabase](https://supabase.com)
-2. Copy `database/init.sql` ke Supabase SQL editor
-3. Run script SQL tersebut
+#### Opsi 1: Docker Compose (Recommended)
+
+```bash
+# Buat network external waw_bridge
+docker network create waw_bridge
+
+# Jalankan database dan aplikasi
+docker-compose up -d
+
+# Database akan otomatis ter-setup dengan schema yang dibutuhkan
+```
+
+#### Opsi 2: PostgreSQL Manual
+
+1. Install PostgreSQL 15+
+2. Buat database:
+   ```sql
+   CREATE DATABASE chatbot;
+   CREATE USER chatbot WITH PASSWORD 'your_password_here';
+   GRANT ALL PRIVILEGES ON DATABASE chatbot TO chatbot;
+   ```
+3. Jalankan schema:
+   ```bash
+   psql -U chatbot -d chatbot -f init.sql
+   ```
 
 ### 4. Setup Telegram Bot
 
@@ -70,7 +96,24 @@ WEBHOOK_URL=https://yourdomain.com/webhook
 
 ## 🏃‍♂️ Run Locally
 
+### Dengan Docker Compose (Recommended)
+
 ```bash
+# Buat network external waw_bridge
+docker network create waw_bridge
+
+# Jalankan aplikasi dengan database
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f app
+```
+
+### Manual (Development)
+
+```bash
+# Install PostgreSQL dan setup database manual (lihat langkah 3)
+
 # Download dependencies
 go mod tidy
 
@@ -80,28 +123,39 @@ go run cmd/bot/main.go
 
 ## 🚀 Deployment
 
-### Railway
+### Docker Compose (Production)
 
 ```bash
-# Install Railway CLI
-npm install -g @railway/cli
+# Setup network external
+docker network create waw_bridge
 
-# Login
-railway login
+# Build dan run di background
+docker-compose -f docker-compose.yml up -d --build
 
-# Deploy
-railway up
+# Check health endpoint
+curl http://localhost:8080/health
 ```
 
-### Docker
+### Manual Docker
 
 ```bash
 # Build image
 docker build -t telegram-finance-bot .
 
 # Run container
-docker run -p 8080:8080 --env-file .env telegram-finance-bot
+docker run -p 8080:8080 \
+  --env-file .env \
+  --network waw_bridge \
+  telegram-finance-bot
 ```
+
+### Environment Variable Production
+
+Pastikan environment variables berikut di-set di production:
+- `DATABASE_URL` (PostgreSQL connection string)
+- `TELEGRAM_BOT_TOKEN`
+- `GROQ_API_KEY`
+- `WEBHOOK_URL` (jika menggunakan webhook)
 
 ## 📱 Cara Pakai
 
@@ -152,14 +206,16 @@ Environment variables:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+| `DATABASE_URL` | ✅ | - | PostgreSQL connection string |
 | `TELEGRAM_BOT_TOKEN` | ✅ | - | Telegram bot token |
-| `SUPABASE_URL` | ✅ | - | Supabase project URL |
-| `SUPABASE_ANON_KEY` | ✅ | - | Supabase anon key |
 | `GROQ_API_KEY` | ✅ | - | Groq API key |
 | `PORT` | ❌ | 8080 | Server port |
 | `WEBHOOK_URL` | ❌ | - | Telegram webhook URL |
 | `DEFAULT_TIMEZONE` | ❌ | Asia/Jakarta | User timezone |
 | `DEFAULT_LANGUAGE` | ❌ | id | Default language |
+| `GROQ_MODEL` | ❌ | llama-3.1-70b-versatile | Groq AI model |
+| `GROQ_TEMPERATURE` | ❌ | 0.3 | AI response temperature |
+| `GROQ_MAX_TOKENS` | ❌ | 1000 | Maximum response tokens |
 
 ## 🤝 Contributing
 
@@ -189,9 +245,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Check server logs
 
 ### Error database
-- Pastikan Supabase credentials benar
-- Check SQL schema sudah di-run
-- Verify RLS policies
+- Pastikan PostgreSQL credentials benar
+- Check database sudah running dan accessible
+- Verify UUID extension sudah di-install
+- Check schema sudah di-migrate dengan benar
 
 ### LLM tidak bekerja
 - Check `GROQ_API_KEY` valid

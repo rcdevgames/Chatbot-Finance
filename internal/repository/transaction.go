@@ -1,31 +1,21 @@
 package repository
 
 import (
-	"fmt"
-
 	"chatbot/internal/model"
+
+	"gorm.io/gorm"
 )
 
 type TransactionRepository struct {
-	db *SupabaseClient
+	db *gorm.DB
 }
 
-func NewTransactionRepository(db *SupabaseClient) *TransactionRepository {
+func NewTransactionRepository(db *gorm.DB) *TransactionRepository {
 	return &TransactionRepository{db: db}
 }
 
 func (r *TransactionRepository) CreateTransaction(transaction *model.Transaction) error {
-	var result []model.Transaction
-	err := r.db.Post("transactions", transaction, &result)
-	if err != nil {
-		return HandleSupabaseError(err)
-	}
-
-	if len(result) > 0 {
-		transaction.ID = result[0].ID
-	}
-
-	return nil
+	return r.db.Create(transaction).Error
 }
 
 func (r *TransactionRepository) GetTransactionsByUserID(userID string, limit ...int) ([]model.Transaction, error) {
@@ -35,57 +25,41 @@ func (r *TransactionRepository) GetTransactionsByUserID(userID string, limit ...
 	}
 
 	var transactions []model.Transaction
-	params := map[string]interface{}{
-		"user_id": userID,
-		"order":   "created_at.desc",
-		"limit":   limitValue,
-	}
-	err := r.db.Get("transactions", params, &transactions)
-	if err != nil {
-		return nil, HandleSupabaseError(err)
-	}
-
-	return transactions, nil
+	err := r.db.Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Limit(limitValue).
+		Find(&transactions).Error
+	return transactions, err
 }
 
 func (r *TransactionRepository) GetTransactionsByUserAndDateRange(userID, startDate, endDate string) ([]model.Transaction, error) {
 	var transactions []model.Transaction
-	params := map[string]interface{}{
-		"user_id": userID,
-		"date":    fmt.Sprintf("gte.%s,lte.%s", startDate, endDate),
-		"order":   "date.desc",
-	}
-	err := r.db.Get("transactions", params, &transactions)
-	if err != nil {
-		return nil, HandleSupabaseError(err)
-	}
-
-	return transactions, nil
+	err := r.db.Where("user_id = ? AND date BETWEEN ? AND ?", userID, startDate, endDate).
+		Order("date DESC").
+		Find(&transactions).Error
+	return transactions, err
 }
 
 func (r *TransactionRepository) GetLastTransaction(userID string) (*model.Transaction, error) {
-	transactions, err := r.GetTransactionsByUserID(userID, 1)
+	var transaction model.Transaction
+	err := r.db.Where("user_id = ?", userID).
+		Order("created_at DESC").
+		First(&transaction).Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, gorm.ErrRecordNotFound
+		}
 		return nil, err
 	}
-
-	if len(transactions) == 0 {
-		return nil, fmt.Errorf("no transactions found")
-	}
-
-	return &transactions[0], nil
+	return &transaction, nil
 }
 
-func (r *TransactionRepository) UpdateTransaction(transactionID string, transaction *model.Transaction) error {
-	var result []model.Transaction
-	err := r.db.Patch("transactions", transactionID, transaction, &result)
-	return HandleSupabaseError(err)
+func (r *TransactionRepository) UpdateTransaction(transaction *model.Transaction) error {
+	return r.db.Save(transaction).Error
 }
 
 func (r *TransactionRepository) DeleteTransaction(transactionID string) error {
-	var result []model.Transaction
-	err := r.db.Delete("transactions", transactionID, &result)
-	return HandleSupabaseError(err)
+	return r.db.Delete(&model.Transaction{}, "id = ?", transactionID).Error
 }
 
 func (r *TransactionRepository) GetTransactionsByCategory(userID, category string, limit ...int) ([]model.Transaction, error) {
@@ -95,18 +69,11 @@ func (r *TransactionRepository) GetTransactionsByCategory(userID, category strin
 	}
 
 	var transactions []model.Transaction
-	params := map[string]interface{}{
-		"user_id": userID,
-		"category": category,
-		"order":   "created_at.desc",
-		"limit":   limitValue,
-	}
-	err := r.db.Get("transactions", params, &transactions)
-	if err != nil {
-		return nil, HandleSupabaseError(err)
-	}
-
-	return transactions, nil
+	err := r.db.Where("user_id = ? AND category = ?", userID, category).
+		Order("created_at DESC").
+		Limit(limitValue).
+		Find(&transactions).Error
+	return transactions, err
 }
 
 func (r *TransactionRepository) GetTransactionsByType(userID, transactionType string, limit ...int) ([]model.Transaction, error) {
@@ -116,16 +83,21 @@ func (r *TransactionRepository) GetTransactionsByType(userID, transactionType st
 	}
 
 	var transactions []model.Transaction
-	params := map[string]interface{}{
-		"user_id": userID,
-		"type":    transactionType,
-		"order":   "created_at.desc",
-		"limit":   limitValue,
-	}
-	err := r.db.Get("transactions", params, &transactions)
-	if err != nil {
-		return nil, HandleSupabaseError(err)
-	}
+	err := r.db.Where("user_id = ? AND type = ?", userID, transactionType).
+		Order("created_at DESC").
+		Limit(limitValue).
+		Find(&transactions).Error
+	return transactions, err
+}
 
-	return transactions, nil
+func (r *TransactionRepository) GetTransactionByID(transactionID string) (*model.Transaction, error) {
+	var transaction model.Transaction
+	err := r.db.Where("id = ?", transactionID).First(&transaction).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, gorm.ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return &transaction, nil
 }

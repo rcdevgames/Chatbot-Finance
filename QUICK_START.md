@@ -3,7 +3,7 @@
 ## 📋 Prerequisites
 
 - Telegram Bot token dari [@BotFather](https://t.me/botfather)
-- Supabase account (gratis di [supabase.com](https://supabase.com))
+- Docker & Docker Compose
 - Groq API key (gratis di [groq.com](https://groq.com))
 
 ## ⚡ 5 Menit Setup
@@ -16,13 +16,19 @@ Username: finance_bot_gua
 ```
 Copy token yang diberikan.
 
-### 2. Setup Supabase
-1. Go to [supabase.com](https://supabase.com)
-2. Create new project
-3. Copy URL dan anon key
-4. Buka SQL editor
-5. Copy-paste isi `database/init.sql`
-6. Run SQL
+### 2. Setup Database dengan Docker
+```bash
+# Clone repository
+git clone <repository-url>
+cd telegram-finance-bot
+
+# Create network external
+docker network create waw_bridge
+
+# Setup environment
+cp .env.example .env
+# Edit .env file dengan credentials kamu
+```
 
 ### 3. Get Groq API Key
 1. Go to [groq.com](https://groq.com)
@@ -32,29 +38,28 @@ Copy token yang diberikan.
 5. Copy key
 
 ### 4. Configure Environment
+Edit `.env` file dengan credentials kamu:
 ```bash
-# Copy .env template
-cp .env.example .env
+# Database
+DATABASE_URL=postgres://chatbot:your_password_here@postgres:5432/chatbot?sslmode=disable
+POSTGRES_PASSWORD=your_password_here
 
-# Edit .env
-nano .env
-```
-
-Isi dengan credentials kamu:
-```bash
+# Telegram
 TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Groq AI
 GROQ_API_KEY=gsk_1234567890abcdef
 ```
 
-### 5. Run Bot
+### 5. Run Bot dengan Docker Compose
 ```bash
-# Download dependencies
-go mod tidy
+# Jalankan database dan aplikasi
+docker-compose up -d
 
-# Build & run
-go run cmd/bot/main.go
+# Check logs
+docker-compose logs -f app
+
+# Database otomatis ter-setup dengan schema dan default categories
 ```
 
 ## 🎱 Test Bot
@@ -65,8 +70,35 @@ Chat dengan bot kamu di Telegram:
 - `pengeluaran hari ini?` - Query expenses
 - `/help` - Lihat semua commands
 
-## 🚀 Deploy ke Railway
+## ✅ Check Status
 
+Health check endpoint:
+```bash
+curl http://localhost:8080/health
+```
+
+Response seharusnya:
+```json
+{
+  "status": "ok",
+  "message": "Telegram Finance Bot is running",
+  "database": "healthy"
+}
+```
+
+## 🚀 Deploy ke Production
+
+### Docker Compose (Recommended)
+```bash
+# Build dan run di background
+docker-compose up -d --build
+
+# Check status
+docker-compose ps
+docker-compose logs -f app
+```
+
+### Railway
 ```bash
 # Install Railway CLI
 npm install -g @railway/cli
@@ -77,14 +109,7 @@ railway init
 railway up
 ```
 
-Set environment variables di Railway dashboard, then deploy!
-
-## ✅ Check Status
-
-Health check endpoint:
-```bash
-curl http://localhost:8080/health
-```
+Set `DATABASE_URL` dan environment variables lainnya di Railway dashboard!
 
 ## 🔧 Commands Lengkap
 
@@ -133,9 +158,10 @@ curl http://localhost:8080/health
 - Test ping ke Telegram API
 
 ### Database error
-- Verify Supabase credentials
-- Pastikan SQL schema sudah di-run
-- Check RLS policies
+- Verify PostgreSQL connection
+- Check container status: `docker-compose ps`
+- Check database logs: `docker-compose logs postgres`
+- Pastikan network `waw_bridge` sudah dibuat
 
 ### Groq tidak bekerja
 - Verify `GROQ_API_KEY`

@@ -5,69 +5,93 @@ import (
 )
 
 type User struct {
-	ID             string    `json:"id"`
-	TelegramUserID int64     `json:"telegram_user_id"`
-	TelegramUsername string  `json:"telegram_username"`
-	FirstName      string    `json:"first_name"`
-	LastName       string    `json:"last_name"`
-	LanguageCode   string    `json:"language_code"`
-	Timezone       string    `json:"timezone"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID                string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	TelegramUserID    int64     `gorm:"uniqueIndex;not null" json:"telegram_user_id"`
+	TelegramUsername  string    `gorm:"index" json:"telegram_username"`
+	FirstName         string    `json:"first_name"`
+	LastName          string    `json:"last_name"`
+	LanguageCode      string    `json:"language_code"`
+	Timezone          string    `gorm:"default:'Asia/Jakarta'" json:"timezone"`
+	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt         time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (User) TableName() string {
+	return "users"
 }
 
 type Transaction struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"user_id"`
-	Type        string    `json:"type"` // income, expense
-	Amount      float64   `json:"amount"`
-	Category    string    `json:"category"`
-	Description string    `json:"description"`
-	Date        string    `json:"date"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	UserID      string    `gorm:"type:uuid;not null;index" json:"user_id"`
+	Type        string    `gorm:"type:varchar(10);not null;check:type IN ('income', 'expense')" json:"type"` // income, expense
+	Amount      float64   `gorm:"type:decimal(15,2);not null" json:"amount"`
+	Category    string    `gorm:"type:varchar(100);not null;index" json:"category"`
+	Description string    `gorm:"type:text" json:"description"`
+	Date        string    `gorm:"type:date;not null;index" json:"date"`
+	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (Transaction) TableName() string {
+	return "transactions"
 }
 
 type Category struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Type      string   `json:"type"` // income, expense
-	Icon      string   `json:"icon"`
-	Keywords  []string `json:"keywords"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	Name      string    `gorm:"type:varchar(100);not null;uniqueIndex" json:"name"`
+	Type      string    `gorm:"type:varchar(10);not null;check:type IN ('income', 'expense')" json:"type"` // income, expense
+	Icon      string    `gorm:"type:varchar(50)" json:"icon"`
+	Keywords  []string  `gorm:"type:text;serializer:json" json:"keywords"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (Category) TableName() string {
+	return "categories"
 }
 
 type ChatHistory struct {
-	ID                string    `json:"id"`
-	UserID            string    `json:"user_id"`
-	TelegramMessageID int64     `json:"telegram_message_id"`
-	Role              string    `json:"role"` // user, assistant
-	Content           string    `json:"content"`
-	CreatedAt         time.Time `json:"created_at"`
+	ID                string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	UserID            string    `gorm:"type:uuid;not null;index" json:"user_id"`
+	TelegramMessageID int64     `gorm:"index" json:"telegram_message_id"`
+	Role              string    `gorm:"type:varchar(20);not null;check:role IN ('user', 'assistant')" json:"role"` // user, assistant
+	Content           string    `gorm:"type:text;not null" json:"content"`
+	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (ChatHistory) TableName() string {
+	return "chat_history"
 }
 
 type Budget struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	Category  string    `json:"category"`
-	Amount    float64   `json:"amount"`
-	Period    string    `json:"period"` // daily, weekly, monthly
-	StartDate string    `json:"start_date"`
-	EndDate   string    `json:"end_date"`
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	UserID    string    `gorm:"type:uuid;not null;index" json:"user_id"`
+	Category  string    `gorm:"type:varchar(100);not null;index" json:"category"`
+	Amount    float64   `gorm:"type:decimal(15,2);not null" json:"amount"`
+	Period    string    `gorm:"type:varchar(20);not null;check:period IN ('daily', 'weekly', 'monthly')" json:"period"` // daily, weekly, monthly
+	StartDate string    `gorm:"type:date;not null" json:"start_date"`
+	EndDate   string    `gorm:"type:date;not null" json:"end_date"`
+	IsActive  bool      `gorm:"default:true" json:"is_active"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (Budget) TableName() string {
+	return "budgets"
 }
 
 type Insight struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"user_id"`
-	Type        string    `json:"type"` // weekly_summary, monthly_summary, recommendation
-	Content     string    `json:"content"`
-	Metadata    string    `json:"metadata"` // JSON string
-	PeriodStart string    `json:"period_start"`
-	PeriodEnd   string    `json:"period_end"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	UserID      string    `gorm:"type:uuid;not null;index" json:"user_id"`
+	Type        string    `gorm:"type:varchar(50);not null;index" json:"type"` // weekly_summary, monthly_summary, recommendation
+	Content     string    `gorm:"type:text;not null" json:"content"`
+	Metadata    string    `gorm:"type:text;serializer:json" json:"metadata"` // JSON string
+	PeriodStart string    `gorm:"type:date;index" json:"period_start"`
+	PeriodEnd   string    `gorm:"type:date;index" json:"period_end"`
+	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (Insight) TableName() string {
+	return "insights"
 }
 
 // LLM Related Types

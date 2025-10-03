@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"chatbot/internal/config"
+	"chatbot/internal/database"
 	"chatbot/internal/handler"
 	"chatbot/internal/repository"
 	"chatbot/internal/service"
@@ -17,16 +18,22 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 
+	// Initialize database connection
+	db, err := database.NewDatabase(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+
 	// Initialize dependencies
 	telegramClient := telegram.NewClient(cfg.TelegramBotToken)
-	supabaseClient := repository.NewSupabaseClient(cfg.SupabaseURL, cfg.SupabaseKey)
 	groqService := service.NewGroqService(cfg.GroqAPIKey)
 
 	// Initialize repositories
-	userRepo := repository.NewUserRepository(supabaseClient)
-	transactionRepo := repository.NewTransactionRepository(supabaseClient)
-	chatHistoryRepo := repository.NewChatHistoryRepository(supabaseClient)
-	categoryRepo := repository.NewCategoryRepository(supabaseClient)
+	userRepo := repository.NewUserRepository(db.DB)
+	transactionRepo := repository.NewTransactionRepository(db.DB)
+	chatHistoryRepo := repository.NewChatHistoryRepository(db.DB)
+	categoryRepo := repository.NewCategoryRepository(db.DB)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo, transactionRepo, chatHistoryRepo, categoryRepo)
@@ -39,10 +46,21 @@ func main() {
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
+		health := gin.H{
 			"status": "ok",
 			"message": "Telegram Finance Bot is running",
-		})
+		}
+
+		// Check database health
+		if err := db.Health(); err != nil {
+			health["database"] = "unhealthy"
+			health["database_error"] = err.Error()
+			c.JSON(503, health)
+			return
+		}
+		health["database"] = "healthy"
+
+		c.JSON(200, health)
 	})
 
 	// Webhook endpoint for Telegram

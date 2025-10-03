@@ -2,41 +2,39 @@ package repository
 
 import (
 	"chatbot/internal/model"
+
+	"gorm.io/gorm"
 )
 
 type ChatHistoryRepository struct {
-	db *SupabaseClient
+	db *gorm.DB
 }
 
-func NewChatHistoryRepository(db *SupabaseClient) *ChatHistoryRepository {
+func NewChatHistoryRepository(db *gorm.DB) *ChatHistoryRepository {
 	return &ChatHistoryRepository{db: db}
 }
 
 func (r *ChatHistoryRepository) SaveChatHistory(history *model.ChatHistory) error {
-	var result []model.ChatHistory
-	err := r.db.Post("chat_history", history, &result)
-	if err != nil {
-		return HandleSupabaseError(err)
-	}
-
-	if len(result) > 0 {
-		history.ID = result[0].ID
-	}
-
-	return nil
+	return r.db.Create(history).Error
 }
 
 func (r *ChatHistoryRepository) GetRecentChatHistory(userID string, limit int) ([]model.ChatHistory, error) {
 	var history []model.ChatHistory
-	params := map[string]interface{}{
-		"user_id": userID,
-		"order":   "created_at.desc",
-		"limit":   limit,
-	}
-	err := r.db.Get("chat_history", params, &history)
-	if err != nil {
-		return nil, HandleSupabaseError(err)
-	}
+	err := r.db.Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&history).Error
+	return history, err
+}
 
-	return history, nil
+func (r *ChatHistoryRepository) GetChatHistoryByUserID(userID string) ([]model.ChatHistory, error) {
+	var history []model.ChatHistory
+	err := r.db.Where("user_id = ?", userID).
+		Order("created_at ASC").
+		Find(&history).Error
+	return history, err
+}
+
+func (r *ChatHistoryRepository) DeleteChatHistoryByUserID(userID string) error {
+	return r.db.Delete(&model.ChatHistory{}, "user_id = ?", userID).Error
 }

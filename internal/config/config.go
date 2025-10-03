@@ -10,8 +10,7 @@ import (
 
 type Config struct {
 	TelegramBotToken string
-	SupabaseURL      string
-	SupabaseKey      string
+	DatabaseURL      string
 	GroqAPIKey       string
 	Port             string
 	WebhookURL       string
@@ -34,8 +33,7 @@ func Load() *Config {
 
 	config := &Config{
 		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
-		SupabaseURL:      getEnv("SUPABASE_URL", ""),
-		SupabaseKey:      getEnv("SUPABASE_ANON_KEY", ""),
+		DatabaseURL:      getEnv("DATABASE_URL", "postgres://user:password@localhost/dbname?sslmode=disable"),
 		GroqAPIKey:       getEnv("GROQ_API_KEY", ""),
 		Port:             getEnv("PORT", "8080"),
 		WebhookURL:       getEnv("WEBHOOK_URL", ""),
@@ -52,11 +50,8 @@ func Load() *Config {
 	if config.TelegramBotToken == "" {
 		log.Fatal("TELEGRAM_BOT_TOKEN is required")
 	}
-	if config.SupabaseURL == "" {
-		log.Fatal("SUPABASE_URL is required")
-	}
-	if config.SupabaseKey == "" {
-		log.Fatal("SUPABASE_ANON_KEY is required")
+	if config.DatabaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
 	}
 	if config.GroqAPIKey == "" {
 		log.Fatal("GROQ_API_KEY is required")
