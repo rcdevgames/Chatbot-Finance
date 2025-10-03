@@ -35,7 +35,4 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifi
 # Expose port
 EXPOSE 8080
 
-# Run the binary as nonroot user
-USER 65532:65532
-
 CMD ["/app/chatbot"]
