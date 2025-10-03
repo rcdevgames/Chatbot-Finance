@@ -24,7 +24,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 
 # Copy the binary from builder stage
-COPY --from=builder /app/chatbot .
+COPY --from=builder --chown=nonroot:nonroot /build/chatbot /app/chatbot
 
 # Copy timezone data from builder stage
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
@@ -35,4 +35,4 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifi
 # Expose port
 EXPOSE 8080
 
-CMD ["/app/chatbot"]
+ENTRYPOINT ["/app/static-server"]
