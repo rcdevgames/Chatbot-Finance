@@ -52,6 +52,11 @@ func NewDatabase(databaseURL string) (*Database, error) {
 func autoMigrate(db *gorm.DB) error {
 	log.Println("Running auto migration...")
 
+	// Create UUID extension if not exists
+	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error; err != nil {
+		return fmt.Errorf("failed to create uuid-ossp extension: %w", err)
+	}
+
 	// First, create migration schema table if not exists
 	if err := db.AutoMigrate(&model.MigrationSchema{}); err != nil {
 		return fmt.Errorf("failed to migrate migration schema: %w", err)

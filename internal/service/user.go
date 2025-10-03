@@ -92,7 +92,8 @@ func (s *UserService) UpdateLastTransaction(userID string, transaction *model.Tr
 		return err
 	}
 
-	return s.transactionRepo.UpdateTransaction(last.ID, transaction)
+	transaction.ID = last.ID
+	return s.transactionRepo.UpdateTransaction(transaction)
 }
 
 func (s *UserService) DeleteLastTransaction(userID string) error {

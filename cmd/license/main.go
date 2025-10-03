@@ -14,6 +14,8 @@ import (
 	"chatbot/internal/model"
 	"chatbot/internal/service"
 
+	"github.com/joho/godotenv"
+
 	"gorm.io/gorm"
 )
 
@@ -33,10 +35,14 @@ func main() {
 	flag.Parse()
 
 	// Load configuration
-	cfg, err := config.LoadConfig(*configPath)
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+	// Load .env file from specified path if provided
+	if *configPath != ".env" {
+		if err := godotenv.Load(*configPath); err != nil {
+			log.Fatalf("Failed to load config file: %v", err)
+		}
 	}
+
+	cfg := config.Load()
 
 	// Initialize database
 	db, err := database.NewDatabase(cfg.DatabaseURL)

@@ -8,7 +8,7 @@ import (
 
 // LicenseKey represents a license key for accessing the bot
 type LicenseKey struct {
-	ID          string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	ID          string    `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" json:"id"`
 	Key         string    `gorm:"type:varchar(64);uniqueIndex;not null" json:"key"`
 	Name        string    `gorm:"type:varchar(100);not null" json:"name"`
 	Description string    `gorm:"type:text" json:"description"`
@@ -22,7 +22,7 @@ type LicenseKey struct {
 
 // UserLicense represents a user activated with a license
 type UserLicense struct {
-	ID           string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	ID           string    `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" json:"id"`
 	LicenseKeyID string    `gorm:"type:uuid;not null;index" json:"license_key_id"`
 	UserID       string    `gorm:"type:uuid;not null;index" json:"user_id"`
 	ActivatedAt  time.Time `gorm:"autoCreateTime" json:"activated_at"`

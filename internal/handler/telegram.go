@@ -70,14 +70,18 @@ func (h *TelegramHandler) HandleUpdate(update telegram.Update) error {
 
 	// Handle commands
 	if strings.HasPrefix(text, "/") {
-		return h.handleCommand(chat.ID, text, dbUser, user.ID)
+		var userIDStr string
+		if dbUser != nil {
+			userIDStr = dbUser.ID
+		}
+		return h.handleCommand(chat.ID, text, userIDStr, user.ID)
 	}
 
 	// Process regular message
 	return h.handleMessage(chat.ID, text, dbUser)
 }
 
-func (h *TelegramHandler) handleCommand(chatID int64, command, userID, telegramUserID int64) error {
+func (h *TelegramHandler) handleCommand(chatID int64, command string, userID string, telegramUserID int64) error {
 	switch command {
 	case "/start":
 		return h.handleStart(chatID, telegramUserID)
@@ -230,7 +234,7 @@ Error: %s
 👥 User: %s (%s)`,
 		licenseInfo.LicenseName,
 		user.FirstName,
-		user.Username)
+		user.TelegramUsername)
 
 	if licenseInfo.ExpiresAt != nil && licenseInfo.DaysRemaining != nil {
 		successMsg += fmt.Sprintf("\n⏰ Berlaku hingga: %d hari lagi", *licenseInfo.DaysRemaining)

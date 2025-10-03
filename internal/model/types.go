@@ -5,7 +5,7 @@ import (
 )
 
 type User struct {
-	ID                string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	ID                string    `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" json:"id"`
 	TelegramUserID    int64     `gorm:"uniqueIndex;not null" json:"telegram_user_id"`
 	TelegramUsername  string    `gorm:"index" json:"telegram_username"`
 	FirstName         string    `json:"first_name"`
@@ -21,7 +21,7 @@ func (User) TableName() string {
 }
 
 type Transaction struct {
-	ID          string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	ID          string    `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" json:"id"`
 	UserID      string    `gorm:"type:uuid;not null;index" json:"user_id"`
 	Type        string    `gorm:"type:varchar(10);not null;check:type IN ('income', 'expense')" json:"type"` // income, expense
 	Amount      float64   `gorm:"type:decimal(15,2);not null" json:"amount"`
@@ -37,7 +37,7 @@ func (Transaction) TableName() string {
 }
 
 type Category struct {
-	ID        string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	ID        string    `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" json:"id"`
 	Name      string    `gorm:"type:varchar(100);not null;uniqueIndex" json:"name"`
 	Type      string    `gorm:"type:varchar(10);not null;check:type IN ('income', 'expense')" json:"type"` // income, expense
 	Icon      string    `gorm:"type:varchar(50)" json:"icon"`
@@ -50,7 +50,7 @@ func (Category) TableName() string {
 }
 
 type ChatHistory struct {
-	ID                string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	ID                string    `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" json:"id"`
 	UserID            string    `gorm:"type:uuid;not null;index" json:"user_id"`
 	TelegramMessageID int64     `gorm:"index" json:"telegram_message_id"`
 	Role              string    `gorm:"type:varchar(20);not null;check:role IN ('user', 'assistant')" json:"role"` // user, assistant
@@ -63,7 +63,7 @@ func (ChatHistory) TableName() string {
 }
 
 type Budget struct {
-	ID        string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	ID        string    `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" json:"id"`
 	UserID    string    `gorm:"type:uuid;not null;index" json:"user_id"`
 	Category  string    `gorm:"type:varchar(100);not null;index" json:"category"`
 	Amount    float64   `gorm:"type:decimal(15,2);not null" json:"amount"`
@@ -80,7 +80,7 @@ func (Budget) TableName() string {
 }
 
 type Insight struct {
-	ID          string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	ID          string    `gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" json:"id"`
 	UserID      string    `gorm:"type:uuid;not null;index" json:"user_id"`
 	Type        string    `gorm:"type:varchar(50);not null;index" json:"type"` // weekly_summary, monthly_summary, recommendation
 	Content     string    `gorm:"type:text;not null" json:"content"`
