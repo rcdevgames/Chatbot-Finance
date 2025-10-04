@@ -18,21 +18,23 @@ COPY . .
 # Build the application with CGO enabled for PostgreSQL
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o chatbot cmd/bot/main.go
 
-# Final stage - use distroless debian nonroot with C library support
-FROM gcr.io/distroless/static-debian12:nonroot
+# Final stage - use alpine nonroot
+FROM alpine:latest
+
+RUN addgroup -S nonroot && adduser -S nonroot -G nonroot
 
 WORKDIR /app
 
+# Install ca-certificates and timezone data
+RUN apk add --no-cache ca-certificates tzdata
+
 # Copy the binary from builder stage
-COPY --from=builder --chown=nonroot:nonroot /build/chatbot /app/chatbot
+COPY --from=builder --chown=nonroot:nonroot /app/chatbot /app/chatbot
 
 # Copy timezone data from builder stage
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
-# Copy ca-certificates from builder stage
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-
 # Expose port
 EXPOSE 8080
 
-ENTRYPOINT ["/app/static-server"]
+ENTRYPOINT ["/app/chatbot"]

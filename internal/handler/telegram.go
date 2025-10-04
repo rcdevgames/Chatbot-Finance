@@ -342,7 +342,10 @@ func (h *TelegramHandler) handleMessage(chatID int64, text string, user *model.U
 		Role:   "user",
 		Content: text,
 	}
-	h.userService.SaveChatHistory(userHistory)
+	if err := h.userService.SaveChatHistory(userHistory); err != nil {
+		log.Printf("Error saving user chat history: %v", err)
+		// Continue processing even if save fails
+	}
 
 	// Process the intent
 	response := h.processIntent(chatID, llmResponse, user)
@@ -353,7 +356,10 @@ func (h *TelegramHandler) handleMessage(chatID int64, text string, user *model.U
 		Role:   "assistant",
 		Content: response,
 	}
-	h.userService.SaveChatHistory(botHistory)
+	if err := h.userService.SaveChatHistory(botHistory); err != nil {
+		log.Printf("Error saving bot chat history: %v", err)
+		// Continue processing even if save fails
+	}
 
 	return h.sendMessage(chatID, response)
 }
@@ -500,7 +506,19 @@ func (h *TelegramHandler) formatQueryResults(transactions []model.Transaction, q
 }
 
 func (h *TelegramHandler) formatCurrency(amount float64) string {
-	return fmt.Sprintf("Rp %.0f", amount)
+	// Format with thousand separator
+	formatted := fmt.Sprintf("%.0f", amount)
+
+	// Add thousand separator
+	var result string
+	for i, c := range formatted {
+		if i > 0 && (len(formatted)-i)%3 == 0 {
+			result += "."
+		}
+		result += string(c)
+	}
+
+	return fmt.Sprintf("Rp %s", result)
 }
 
 func (h *TelegramHandler) getCategoryIcon(category string) string {

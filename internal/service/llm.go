@@ -54,7 +54,7 @@ func NewGroqService(apiKey string) *GroqService {
 	return &GroqService{
 		apiKey:  apiKey,
 		baseURL: "https://api.groq.com/openai/v1/chat/completions",
-		model:   "llama-3.1-70b-versatile",
+		model:   "llama-3.3-70b-versatile",
 	}
 }
 
@@ -100,11 +100,12 @@ func (g *GroqService) ProcessUserInput(request *model.LLMRequest) (*model.LLMRes
 
 	var groqResp GroqResponse
 	if err := json.Unmarshal(body, &groqResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Groq response: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal Groq response: %w. Response body: %s", err, string(body))
 	}
 
 	if len(groqResp.Choices) == 0 {
-		return nil, fmt.Errorf("no choices in Groq response")
+		// Log the full response for debugging
+		return nil, fmt.Errorf("no choices in Groq response. Status: %d, Body: %s", resp.StatusCode, string(body))
 	}
 
 	content := groqResp.Choices[0].Message.Content
@@ -242,11 +243,11 @@ func (g *GroqService) GenerateFinancialInsights(transactions []model.Transaction
 
 	var groqResp GroqResponse
 	if err := json.Unmarshal(body, &groqResp); err != nil {
-		return "", fmt.Errorf("failed to unmarshal Groq response: %w", err)
+		return "", fmt.Errorf("failed to unmarshal Groq response: %w. Response body: %s", err, string(body))
 	}
 
 	if len(groqResp.Choices) == 0 {
-		return "", fmt.Errorf("no choices in Groq response")
+		return "", fmt.Errorf("no choices in Groq response. Status: %d, Body: %s", resp.StatusCode, string(body))
 	}
 
 	return groqResp.Choices[0].Message.Content, nil

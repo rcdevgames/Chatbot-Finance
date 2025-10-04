@@ -169,10 +169,17 @@ func (ls *LicenseService) IsUserLicensed(telegramUserID int64) (bool, error) {
 // UpdateLastUsed updates the last used timestamp for a user license
 func (ls *LicenseService) UpdateLastUsed(telegramUserID int64) error {
 	now := time.Now()
+
+	// First get the user ID from telegram user ID
+	var user model.User
+	if err := ls.db.Where("telegram_user_id = ?", telegramUserID).First(&user).Error; err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	// Update the user license using the user ID
 	err := ls.db.Model(&model.UserLicense{}).
-		Joins("JOIN users ON user_licenses.user_id = users.id").
-		Where("users.telegram_user_id = ? AND user_licenses.is_active = ?", telegramUserID, true).
-		Update("last_used", &now).Error
+		Where("user_id = ? AND is_active = ?", user.ID, true).
+		Update("last_used", now).Error
 
 	if err != nil {
 		return fmt.Errorf("failed to update last used timestamp: %w", err)
