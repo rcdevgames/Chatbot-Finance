@@ -155,6 +155,39 @@ func (s *UserService) GetFinancialSummary(userID string, period string) (*model.
 	return summary, nil
 }
 
+func (s *UserService) DeleteDataByPeriod(userID string, period string, year int, month int) error {
+	switch period {
+	case "month":
+		// Hapus transaksi per bulan
+		if err := s.transactionRepo.DeleteTransactionsByUserIDAndMonth(userID, year, month); err != nil {
+			return err
+		}
+		// Hapus chat history per bulan
+		if err := s.chatHistoryRepo.DeleteChatHistoryByUserIDAndMonth(userID, year, month); err != nil {
+			return err
+		}
+	case "year":
+		// Hapus transaksi per tahun
+		if err := s.transactionRepo.DeleteTransactionsByUserIDAndYear(userID, year); err != nil {
+			return err
+		}
+		// Hapus chat history per tahun
+		if err := s.chatHistoryRepo.DeleteChatHistoryByUserIDAndYear(userID, year); err != nil {
+			return err
+		}
+	case "all":
+		// Hapus semua transaksi
+		if err := s.transactionRepo.DeleteAllTransactionsByUserID(userID); err != nil {
+			return err
+		}
+		// Hapus semua chat history
+		if err := s.chatHistoryRepo.DeleteChatHistoryByUserID(userID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func getDatesFromQuery(query *model.QueryParams) (string, string) {
 	if query.StartDate != "" && query.EndDate != "" {
 		return query.StartDate, query.EndDate

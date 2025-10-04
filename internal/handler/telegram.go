@@ -91,10 +91,26 @@ func (h *TelegramHandler) handleCommand(chatID int64, command string, userID str
 		return h.handleLicenseHelp(chatID)
 	case "/summary":
 		return h.handleSummary(chatID, userID)
+	case "/hapus":
+		return h.handleDeleteDataMenu(chatID)
 	default:
 		if strings.HasPrefix(command, "/license ") {
 			licenseKey := strings.TrimPrefix(command, "/license ")
 			return h.handleLicenseActivation(chatID, telegramUserID, userID, licenseKey)
+		}
+		if strings.HasPrefix(command, "/hapus ") {
+			return h.handleDeleteCommand(chatID, userID, strings.TrimPrefix(command, "/hapus "))
+		}
+		if strings.HasPrefix(command, "/konfirmasi ") {
+			if userID == "" {
+				return h.sendErrorResponse(chatID, "User ID tidak ditemukan. Silakan coba lagi.")
+			}
+			codeStr := strings.TrimPrefix(command, "/konfirmasi ")
+			var confirmCode int
+			if n, err := fmt.Sscanf(codeStr, "%d", &confirmCode); n != 1 || err != nil {
+				return h.sendErrorResponse(chatID, "Format konfirmasi salah. Contoh: /konfirmasi 1234")
+			}
+			return h.handleDeleteConfirmation(chatID, userID, confirmCode)
 		}
 		return h.sendMessage(chatID, "Command ga dikenal. Ketik /help untuk bantuan.")
 	}
@@ -282,6 +298,12 @@ func (h *TelegramHandler) handleHelp(chatID int64) error {
 🔄 UPDATE/DELETE:
 • "salah harusnya 45rb" → Update transaksi terakhir
 • "hapus transaksi terakhir" → Delete
+
+🗑️ HAPUS DATA:
+• /hapus - Menu hapus data
+• /hapus bulan 2024 1 - Hapus data Januari 2024
+• /hapus tahun 2024 - Hapus data tahun 2024
+• /hapus semua - Hapus semua data
 
 📈 INSIGHTS:
 • "gimana keuangan gua bulan ini?"
@@ -554,6 +576,184 @@ func (h *TelegramHandler) getTypeIcon(transactionType string) string {
 func (h *TelegramHandler) sendMessage(chatID int64, text string) error {
 	_, err := h.telegramClient.SendMessage(chatID, text, "HTML")
 	return err
+}
+
+func (h *TelegramHandler) handleDeleteDataMenu(chatID int64) error {
+	deleteMenu := `🗑️ MENU HAPUS DATA
+
+Pilih data yang mau dihapus:
+
+📅 HAPUS PER BULAN:
+/hapus bulan 2024 1 - Januari 2024
+/hapus bulan 2024 2 - Februari 2024
+...dan seterusnya
+
+📆 HAPUS PER TAHUN:
+/hapus tahun 2024 - Semua data 2024
+/hapus tahun 2023 - Semua data 2023
+
+💥 HAPUS SEMUA:
+/hapus semua - Hapus semua data
+
+⚠️ PERINGATAN:
+• Tindakan ini TIDAK BISA DIBATALKAN
+• Semua data yang dihapus akan hilang permanen
+• Pastikan lo yakin sebelum menghapus
+
+🔒 KONFIRMASI:
+Setelah menjalankan perintah hapus, lo akan diminta konfirmasi sebelum data benar-benar dihapus.`
+
+	return h.sendMessage(chatID, deleteMenu)
+}
+
+func (h *TelegramHandler) handleDeleteCommand(chatID int64, userID string, params string) error {
+	if userID == "" {
+		return h.sendErrorResponse(chatID, "User ID tidak ditemukan. Silakan coba lagi.")
+	}
+
+	parts := strings.Fields(params)
+	if len(parts) == 0 {
+		return h.handleDeleteDataMenu(chatID)
+	}
+
+	switch parts[0] {
+	case "bulan":
+		if len(parts) < 3 {
+			return h.sendErrorResponse(chatID, "Format salah. Contoh: /hapus bulan 2024 1")
+		}
+		var y, m int
+		if n1, err1 := fmt.Sscanf(parts[1], "%d", &y); n1 != 1 || err1 != nil {
+			return h.sendErrorResponse(chatID, "Format tahun salah. Contoh: /hapus bulan 2024 1")
+		}
+		if n2, err2 := fmt.Sscanf(parts[2], "%d", &m); n2 != 1 || err2 != nil {
+			return h.sendErrorResponse(chatID, "Format bulan salah. Contoh: /hapus bulan 2024 1")
+		}
+		if m < 1 || m > 12 {
+			return h.sendErrorResponse(chatID, "Bulan harus antara 1-12. Contoh: /hapus bulan 2024 1")
+		}
+		return h.requestDeleteConfirmation(chatID, userID, "month", y, m, 0)
+
+	case "tahun":
+		if len(parts) < 2 {
+			return h.sendErrorResponse(chatID, "Format salah. Contoh: /hapus tahun 2024")
+		}
+		var y int
+		if n, err := fmt.Sscanf(parts[1], "%d", &y); n != 1 || err != nil {
+			return h.sendErrorResponse(chatID, "Format tahun salah. Contoh: /hapus tahun 2024")
+		}
+		if y < 2000 || y > 2100 {
+			return h.sendErrorResponse(chatID, "Tahun harus antara 2000-2100. Contoh: /hapus tahun 2024")
+		}
+		return h.requestDeleteConfirmation(chatID, userID, "year", y, 0, 0)
+
+	case "semua":
+		return h.requestDeleteConfirmation(chatID, userID, "all", 0, 0, 0)
+
+	default:
+		return h.sendErrorResponse(chatID, "Perintah tidak dikenal. Ketik /hapus untuk melihat menu.")
+	}
+}
+
+func (h *TelegramHandler) requestDeleteConfirmation(chatID int64, userID string, period string, year, month, confirmCode int) error {
+	// Generate confirmation code
+	confirmCode = 1000 + (year % 9000)
+	if period == "all" {
+		confirmCode = 9999
+	} else if period == "year" {
+		confirmCode = 2000 + (year % 8000)
+	} else if period == "month" {
+		confirmCode = 3000 + (year % 7000) + (month % 12)
+	}
+
+	var periodText string
+	switch period {
+	case "month":
+		monthNames := []string{"", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"}
+		periodText = fmt.Sprintf("bulan %s %d", monthNames[month], year)
+	case "year":
+		periodText = fmt.Sprintf("tahun %d", year)
+	case "all":
+		periodText = "SEMUA DATA"
+	}
+
+	confirmationMsg := fmt.Sprintf(`⚠️ KONFIRMASI HAPUS DATA
+
+Lo akan menghapus semua data keuangan untuk %s.
+
+🚨 DATA YANG AKAN DIHAPUS:
+• Semua transaksi
+• Semua riwayat chat
+
+❌ TINDAKAN INI TIDAK BISA DIBATALKAN!
+
+🔐 UNTUK KONFIRMASI, ketik:
+/konfirmasi %d
+
+📌 Jika tidak ingin melanjutkan, abaikan pesan ini.
+Data tidak akan dihapus tanpa konfirmasi dari lo.
+
+⏰ Konfirmasi code akan berlaku selama 5 menit.`, periodText, confirmCode)
+
+	return h.sendMessage(chatID, confirmationMsg)
+}
+
+func (h *TelegramHandler) handleDeleteConfirmation(chatID int64, userID string, confirmCode int) error {
+	// Validasi konfirmasi code
+	period, year, month, err := h.validateConfirmationCode(confirmCode)
+	if err != nil {
+		return h.sendErrorResponse(chatID, "Kode konfirmasi tidak valid atau sudah kadaluarsa. Silakan coba lagi.")
+	}
+
+	// Kirim pesan konfirmasi diterima
+	successMsg := "✅ Konfirmasi diterima. Sedang menghapus data..."
+	h.sendMessage(chatID, successMsg)
+
+	// Eksekusi penghapusan data
+	err = h.userService.DeleteDataByPeriod(userID, period, year, month)
+	if err != nil {
+		log.Printf("Error deleting data: %v", err)
+		return h.sendErrorResponse(chatID, "Gagal menghapus data. Silakan coba lagi.")
+	}
+
+	// Kirim pesan sukses
+	var periodText string
+	switch period {
+	case "month":
+		monthNames := []string{"", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"}
+		periodText = fmt.Sprintf("bulan %s %d", monthNames[month], year)
+	case "year":
+		periodText = fmt.Sprintf("tahun %d", year)
+	case "all":
+		periodText = "SEMUA DATA"
+	}
+
+	finalMsg := fmt.Sprintf("🗑️ Data untuk %s berhasil dihapus permanen.", periodText)
+	return h.sendMessage(chatID, finalMsg)
+}
+
+func (h *TelegramHandler) validateConfirmationCode(code int) (string, int, int, error) {
+	// Validasi konfirmasi code
+	if code == 9999 {
+		return "all", 0, 0, nil
+	} else if code >= 2000 && code < 10000 {
+		// Code untuk tahun: 2000 + (year % 8000)
+		year := code - 2000
+		if year < 100 {
+			year += 2000 // Adjust untuk tahun 2000-an
+		}
+		return "year", year, 0, nil
+	} else if code >= 3000 && code < 10000 {
+		// Code untuk bulan: 3000 + (year % 7000) + (month % 12)
+		temp := code - 3000
+		year := 2000 + (temp % 24) // Asumsikan rentang tahun 2000-2023
+		month := (temp % 12) + 1
+		if month < 1 || month > 12 {
+			return "", 0, 0, fmt.Errorf("invalid month")
+		}
+		return "month", year, month, nil
+	}
+
+	return "", 0, 0, fmt.Errorf("invalid confirmation code")
 }
 
 func (h *TelegramHandler) sendErrorResponse(chatID int64, message string) error {

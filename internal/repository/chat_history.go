@@ -38,3 +38,11 @@ func (r *ChatHistoryRepository) GetChatHistoryByUserID(userID string) ([]model.C
 func (r *ChatHistoryRepository) DeleteChatHistoryByUserID(userID string) error {
 	return r.db.Delete(&model.ChatHistory{}, "user_id = ?", userID).Error
 }
+
+func (r *ChatHistoryRepository) DeleteChatHistoryByUserIDAndMonth(userID string, year int, month int) error {
+	return r.db.Delete(&model.ChatHistory{}, "user_id = ? AND EXTRACT(YEAR FROM created_at) = ? AND EXTRACT(MONTH FROM created_at) = ?", userID, year, month).Error
+}
+
+func (r *ChatHistoryRepository) DeleteChatHistoryByUserIDAndYear(userID string, year int) error {
+	return r.db.Delete(&model.ChatHistory{}, "user_id = ? AND EXTRACT(YEAR FROM created_at) = ?", userID, year).Error
+}

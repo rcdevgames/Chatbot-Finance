@@ -101,3 +101,15 @@ func (r *TransactionRepository) GetTransactionByID(transactionID string) (*model
 	}
 	return &transaction, nil
 }
+
+func (r *TransactionRepository) DeleteTransactionsByUserIDAndMonth(userID string, year int, month int) error {
+	return r.db.Delete(&model.Transaction{}, "user_id = ? AND EXTRACT(YEAR FROM date) = ? AND EXTRACT(MONTH FROM date) = ?", userID, year, month).Error
+}
+
+func (r *TransactionRepository) DeleteTransactionsByUserIDAndYear(userID string, year int) error {
+	return r.db.Delete(&model.Transaction{}, "user_id = ? AND EXTRACT(YEAR FROM date) = ?", userID, year).Error
+}
+
+func (r *TransactionRepository) DeleteAllTransactionsByUserID(userID string) error {
+	return r.db.Delete(&model.Transaction{}, "user_id = ?", userID).Error
+}
