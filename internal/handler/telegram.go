@@ -52,19 +52,31 @@ func (h *TelegramHandler) HandleUpdate(update telegram.Update) error {
 
 	// Check license for non-start commands
 	if !strings.HasPrefix(text, "/start") && !strings.HasPrefix(text, "/license") {
+		// Check if user has valid license
 		isLicensed, err := h.licenseService.IsUserLicensed(user.ID)
 		if err != nil {
 			log.Printf("Error checking license: %v", err)
 			return h.sendErrorResponse(chat.ID, "Maaf, ada error sistem. Coba lagi ya.")
 		}
 
+		// If not licensed, check if trial is active
 		if !isLicensed {
-			return h.handleUnlicensedUser(chat.ID, user.ID)
+			isTrialActive, err := h.userService.IsTrialActive(user.ID)
+			if err != nil {
+				log.Printf("Error checking trial status: %v", err)
+				return h.sendErrorResponse(chat.ID, "Maaf, ada error sistem. Coba lagi ya.")
+			}
+
+			if !isTrialActive {
+				return h.handleUnlicensedUser(chat.ID, user.ID)
+			}
 		}
 
-		// Update last used timestamp
-		if err := h.licenseService.UpdateLastUsed(user.ID); err != nil {
-			log.Printf("Error updating last used: %v", err)
+		// Update last used timestamp (for licensed users)
+		if isLicensed {
+			if err := h.licenseService.UpdateLastUsed(user.ID); err != nil {
+				log.Printf("Error updating last used: %v", err)
+			}
 		}
 	}
 
@@ -130,22 +142,66 @@ func (h *TelegramHandler) handleStart(chatID, telegramUserID int64) error {
 		}
 	}
 
-	// User needs to activate license
-	welcomeMsg := `🔒 SELAMAT DATANG DI FINANCE BOT
+	// Check if user has active trial
+	isTrialActive, err := h.userService.IsTrialActive(telegramUserID)
+	if err != nil {
+		log.Printf("Error checking trial status: %v", err)
+	}
 
-Bot ini memerlukan lisensi untuk bisa digunakan.
+	if isTrialActive {
+		trialDays, err := h.userService.GetTrialDaysRemaining(telegramUserID)
+		if err == nil && trialDays > 0 {
+			return h.handleTrialStart(chatID, trialDays)
+		}
+	}
 
-📝 CARA AKTIVASI:
+	// User needs to activate license or start trial
+	welcomeMsg := `🎉 SELAMAT DATANG DI FINANCE BOT
+
+🆓 **Coba Gratis 3 Hari!**
+Bot ini memberikan akses percobaan gratis selama 3 hari tanpa perlu lisensi.
+
+📝 CARA MULAI:
+• Langsung gunakan bot ini untuk mencoba semua fitur
+• Tidak perlu kode lisensi untuk percobaan gratis
+
+🔑 **Untuk Penggunaan Lanjutan:**
+Jika ingin menggunakan bot setelah percobaan gratis, aktivasi lisensi diperlukan.
 Ketik: /license KODE_LISENSI_ANDA
 
-Contoh: /license FBT-1234-5678-9ABC-DEF0
-
-🔑 Jika belum punya kode lisensi:
-Silakan hubungi admin untuk mendapatkan kode lisensi.
-
 📋 COMMANDS:
+/help - Bantuan penggunaan bot
 /license - Bantuan aktivasi lisensi
-/help - Bantuan penggunaan bot`
+
+Langsung coba aja fiturnya! Gratis tanpa syarat! 🚀`
+
+	return h.sendMessage(chatID, welcomeMsg)
+}
+
+func (h *TelegramHandler) handleTrialStart(chatID int64, daysRemaining int) error {
+	welcomeMsg := fmt.Sprintf(`🎉 SELAMAT DATANG KEMBALI!
+
+🆓 Status: **Coba Gratis**
+⏰ Sisa waktu percobaan: %d hari lagi`, daysRemaining)
+
+	welcomeMsg += `
+
+🔥 FITUR-FITUR YANG BISA DICOBAIN:
+• 📝 Input transaksi pake natural language
+• 📊 Query data keuangan (mingguan/bulanan)
+• 🔄 Update/delete transaksi
+• 💡 Auto financial insights
+
+📖 CONTOH PENGGUNAAN:
+• "bayar makan 50rb di warteg"
+• "gaji masuk 8 juta kemarin"
+• "brp pengeluaran gua minggu ini?"
+• "eh salah, harusnya 45rb"
+
+💡 **Ingin pakai setelah percobaan gratis?**
+Ketik: /license KODE_LISENSI_ANDA
+
+Langsung coba aja fiturnya! Gratis! 🚀`
 
 	return h.sendMessage(chatID, welcomeMsg)
 }
@@ -267,7 +323,7 @@ Ketik /help untuk lihat command yang tersedia.`
 func (h *TelegramHandler) handleUnlicensedUser(chatID, telegramUserID int64) error {
 	unlicensedMsg := `🔒 AKSES DITOLAK
 
-Bot ini memerlukan lisensi untuk bisa digunakan.
+Masa percobaan gratis Anda telah berakhir. Untuk menggunakan bot ini, Anda perlu lisensi.
 
 📝 CARA AKTIVASI:
 Ketik: /license KODE_LISENSI_ANDA

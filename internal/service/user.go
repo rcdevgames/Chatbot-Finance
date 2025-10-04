@@ -1,6 +1,7 @@
 package service
 
 import (
+	"time"
 	"chatbot/internal/model"
 	"chatbot/internal/repository"
 	"chatbot/internal/util"
@@ -41,7 +42,8 @@ func (s *UserService) GetOrCreateUser(telegramUserID int64, firstName, lastName,
 		return user, nil
 	}
 
-	// Create new user
+	// Create new user with 3-day trial
+	trialExpiresAt := time.Now().AddDate(0, 0, 3) // 3 days from now
 	newUser := &model.User{
 		TelegramUserID:    telegramUserID,
 		TelegramUsername:  username,
@@ -49,6 +51,8 @@ func (s *UserService) GetOrCreateUser(telegramUserID int64, firstName, lastName,
 		LastName:          lastName,
 		LanguageCode:      "id",
 		Timezone:          "Asia/Jakarta",
+		TrialExpiresAt:    &trialExpiresAt,
+		IsTrialActive:     true,
 	}
 
 	err = s.userRepo.CreateUser(newUser)
@@ -61,6 +65,45 @@ func (s *UserService) GetOrCreateUser(telegramUserID int64, firstName, lastName,
 
 func (s *UserService) GetUserByTelegramID(telegramUserID int64) (*model.User, error) {
 	return s.userRepo.GetUserByTelegramID(telegramUserID)
+}
+
+// IsTrialActive checks if user has an active trial
+func (s *UserService) IsTrialActive(telegramUserID int64) (bool, error) {
+	user, err := s.GetUserByTelegramID(telegramUserID)
+	if err != nil {
+		return false, err
+	}
+
+	// Check if trial is active and not expired
+	if user.IsTrialActive && user.TrialExpiresAt != nil {
+		if time.Now().Before(*user.TrialExpiresAt) {
+			return true, nil
+		}
+		// Trial has expired, deactivate it
+		user.IsTrialActive = false
+		s.userRepo.UpdateUser(user)
+	}
+
+	return false, nil
+}
+
+// GetTrialDaysRemaining returns the number of days remaining in trial
+func (s *UserService) GetTrialDaysRemaining(telegramUserID int64) (int, error) {
+	user, err := s.GetUserByTelegramID(telegramUserID)
+	if err != nil {
+		return 0, err
+	}
+
+	if !user.IsTrialActive || user.TrialExpiresAt == nil {
+		return 0, nil
+	}
+
+	daysRemaining := int(user.TrialExpiresAt.Sub(time.Now()).Hours() / 24)
+	if daysRemaining < 0 {
+		return 0, nil
+	}
+
+	return daysRemaining, nil
 }
 
 func (s *UserService) AddTransaction(userID string, transaction *model.Transaction) error {

@@ -92,6 +92,13 @@ func autoMigrate(db *gorm.DB) error {
 				&model.UserLicense{},
 			},
 		},
+		{
+			version: "1.2.0",
+			name:    "Add trial fields to users table",
+			models: []interface{}{
+				&model.User{},
+			},
+		},
 	}
 
 	// Run migrations in order
@@ -196,6 +203,8 @@ func createAdditionalIndexes(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_chat_history_user_created_desc ON chat_history(user_id, created_at DESC)",
 		"CREATE INDEX IF NOT EXISTS idx_budgets_user_active ON budgets(user_id, is_active) WHERE is_active = true",
 		"CREATE INDEX IF NOT EXISTS idx_insights_user_type_period ON insights(user_id, type, period_start)",
+		"CREATE INDEX IF NOT EXISTS idx_users_trial_expires_at ON users(trial_expires_at) WHERE trial_expires_at IS NOT NULL",
+		"CREATE INDEX IF NOT EXISTS idx_users_trial_active ON users(is_trial_active) WHERE is_trial_active = true",
 	}
 
 	for _, indexSQL := range indexes {

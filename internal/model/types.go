@@ -12,6 +12,8 @@ type User struct {
 	LastName          string    `json:"last_name"`
 	LanguageCode      string    `json:"language_code"`
 	Timezone          string    `gorm:"default:'Asia/Jakarta'" json:"timezone"`
+	TrialExpiresAt    *time.Time `gorm:"index" json:"trial_expires_at"`
+	IsTrialActive     bool      `gorm:"default:false" json:"is_trial_active"`
 	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
